@@ -1,0 +1,7 @@
+/experiments
+/input
+/training_data
+/pretrained
+
+*/__pycache__
+.DS_Store
