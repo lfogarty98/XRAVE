@@ -253,7 +253,7 @@ class RAVE(pl.LightningModule):
             if self.input_mode == "pqmf":
                 return z, x_enc
             else:
-                x_multiband = _pqmf_encode(self.pqmf, x_enc)
+                x_multiband = _pqmf_encode(self.pqmf, x) # Axel's fix for hybrid config
                 return z, x_multiband
         return z
 
