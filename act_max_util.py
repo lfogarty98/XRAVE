@@ -13,6 +13,24 @@ from numpy import asarray, percentile, tile
 # Gaussian Kernel
 from scipy.ndimage import gaussian_filter
 
+import matplotlib.pyplot as plt
+import torchaudio.transforms
+
+def plot_mel_spectrogram(mel_spectrogram, title='Mel Spectrogram', save_path='mel_spectrogram.png'):
+    db_mel_spec = torchaudio.transforms.AmplitudeToDB()(mel_spectrogram)
+    # Remove batch dimension if present
+    if db_mel_spec.dim() == 3 and db_mel_spec.size(0) == 1:
+        db_mel_spec = db_mel_spec[0]
+
+    plt.figure(figsize=(10, 4))
+    plt.imshow(db_mel_spec, origin="lower", aspect="auto", cmap="magma")
+    plt.title(title)
+    plt.xlabel("Time Frames")
+    plt.ylabel("Mel Frequency Bins")
+    plt.colorbar(format="%+2.0f dB")
+    plt.tight_layout()
+    plt.savefig(save_path)
+
 # https://medium.com/analytics-vidhya/deep-dream-visualizing-the-features-learnt-by-convolutional-networks-in-pytorch-b7296ae3b7f
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 denormalize = transforms.Normalize(mean = [-0.485/0.229, -0.456/0.224, -0.406/0.225], std = [1/0.229, 1/0.224, 1/0.225] )
