@@ -8,7 +8,7 @@ import act_max_util as amu
 
 
 # Directory containing model checkpoint and config
-model_dir = '/Users/DiarmuidFogarty/repos/RAVE/jelinek'
+model_dir = '/media/dc-04-vol03/liam/XRAVE/experiments/jelinek_mel_b05386f725'
 
 # Load the model
 config_path = rave.core.search_for_config(model_dir)
@@ -17,23 +17,36 @@ model = rave.RAVE()
 run = rave.core.search_for_run(model_dir)
 model = model.load_from_checkpoint(run)
 
-# extract output layer of encoder
-wasserstein_encoder = model.encoder
-output_layer_encoder = wasserstein_encoder.encoder.net[-1]
+# extract melspectrogram from model
+melspectrogram = model.spectrogram
+n_mels = melspectrogram.n_mels
+
+# extract input layer of encoder
+input_layer_encoder = model.encoder.encoder.net[0]
+in_channels = input_layer_encoder.in_channels
+assert in_channels == melspectrogram.n_mels, \
+    f'Input layer channels {in_channels} do not match melspectrogram channels {n_mels}.'
+
+# create random melspectrogram
+# initial_mel = torch.randn(1, n_mels, 16000)  # shape: (B, C, T)
+
+random_audio = torch.randn(1, 16000)  # shape: (C, T)
+initial_mel = model.spectrogram(random_audio)
+
+# Plot the initial mel spectrogram
+amu.plot_mel_spectrogram(initial_mel, title='Initial Mel Spectrogram')
+
 
 breakpoint()
 
-# create a dummy input
-input = torch.randn(1, 1, 16000)  # Example shape for a single audio sample
-input.requires_grad_(True)
+# Prepare input for activation maximization
+input = initial_mel.unsqueeze(0)  # add batch dimension
+input.requires_grad_(True)  # enable gradient computation
 
-# NOTE: input goes through PQMF block before being passed to the encoder (check model.pqmf)
-# pqmf = model.pqmf
-# x_encoded_input = pqmf.forward_conv(x)
-# print(x_encoded_input.shape)
-
+breakpoint()
 
 # Create hook into target layer
+output_layer_encoder = model.encoder.encoder.net[-1]
 act_dict = {}
 layer_name = 'output_layer_encoder'
 output_layer_encoder.register_forward_hook(amu.layer_hook(act_dict, layer_name))
@@ -49,7 +62,7 @@ Norm_Crop = True            # enable norm regularizer
 Contrib_Crop = True         # enable contribution regularizer
 
 # Run activation maximization
-output = amu.act_max(network=model,
+output = amu.act_max(network=model.encoder.encoder, # only encoder
                 input=input,
                 layer_activation=act_dict,
                 layer_name=layer_name,
@@ -62,3 +75,5 @@ output = amu.act_max(network=model,
                 Norm_Crop=Norm_Crop,
                 Contrib_Crop=Contrib_Crop,
                 )
+
+breakpoint()
