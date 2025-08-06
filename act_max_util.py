@@ -30,6 +30,7 @@ def plot_mel_spectrogram(mel_spectrogram, title='Mel Spectrogram', save_path='me
     plt.colorbar(format="%+2.0f dB")
     plt.tight_layout()
     plt.savefig(save_path)
+    plt.close()  # Close the figure to free memory
 
 # https://medium.com/analytics-vidhya/deep-dream-visualizing-the-features-learnt-by-convolutional-networks-in-pytorch-b7296ae3b7f
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -105,7 +106,7 @@ def act_max(network,
     input, 
     layer_activation, 
     layer_name, 
-    unit, 
+    units, 
     steps=5, 
     alpha=torch.tensor(100), 
     generate_gif=False,
@@ -134,10 +135,15 @@ def act_max(network,
         # then access activation of target layer
         network(input)
         layer_out = layer_activation[layer_name]
-
-        # compute gradients w.r.t. target unit,
-        # then access the gradient of input (image) w.r.t. target unit (neuron) 
-        layer_out[0][unit].backward(retain_graph=True)
+        
+        
+        # NOTE: layer_out[0] has dim (128 (256), T_latent)
+        
+        # compute gradients w.r.t. target units,
+        # then access the gradient of input (image) w.r.t. target units (neuron)
+        
+        act = layer_out[0][units].sum()  # sum activations of all target units
+        act.backward(retain_graph=True)
         img_grad = input.grad
 
         # Gradient Step
@@ -178,7 +184,7 @@ def act_max(network,
         input.requires_grad_(True)
 
         if verbose:
-            print('step: ', k, 'activation: ', layer_out[0][unit])
+            print('step: ', k, 'activation: ', act)
 
         if generate_gif:
             frame = input.detach().squeeze(0)
@@ -187,8 +193,8 @@ def act_max(network,
             cv2.imwrite(path_to_gif+str(k)+'.jpg', frame)
 
         # Keep highest activation
-        if best_activation < layer_out[0][unit]:
-            best_activation = layer_out[0][unit]
+        if best_activation < act:
+            best_activation = act
             best_img = input
 
     return best_img
