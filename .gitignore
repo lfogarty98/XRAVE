@@ -1,7 +1,9 @@
 /experiments
+/checkpoints
 /input
 /training_data
 /pretrained
+/visualisations
 
 */__pycache__
 .DS_Store
