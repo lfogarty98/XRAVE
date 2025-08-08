@@ -24,6 +24,9 @@ model = rave.RAVE()
 run = rave.core.search_for_run(model_dir)
 model = model.load_from_checkpoint(run)
 
+
+
+
 # create random melspectrogram from random waveform
 T = 2000 # NOTE: T affects the number of stacked latent vectors [128, T_latent]. 2000 leads to T_latent = 1
 random_audio = torch.randn(1, T)  # shape: (C, T)
@@ -49,7 +52,7 @@ def encode_melspec_only(self, x, return_mb: bool = False):
 model.encode = types.MethodType(encode_melspec_only, model)
 
 # Extract the first principal component of the latent space and plot it
-top_pc1 = np.abs(model.latent_pca[0])
+top_pc1 = model.latent_pca[0] # NOTE: sign matters!
 import matplotlib.pyplot as plt
 plt.bar(np.arange(len(top_pc1)), top_pc1)
 plt.title('Top Principal Component (PC1)')
@@ -57,16 +60,16 @@ plt.savefig('visualisations/latent_pca_top_pc1.png')
 plt.close()
 
 # Select the top N dimensions to maximize
-N = 10
+N = 15
 important_dims = torch.argsort(top_pc1, descending=True)
 important_dims = important_dims[:N]  # Select top N dimensions
 
 
 # Parameters for activation maximization
-steps = 2000                # perform 100 iterations
-unit = important_dims[0]    # take latents contributing the most to the first PC
+steps = 5000                # perform 100 iterations
+units = important_dims     # take latents contributing the most to the first PC
 alpha = torch.tensor(100)   # learning rate (step size) 
-verbose = False              # print activation every step
+verbose = True              # print activation every step
 L2_Decay = False             # enable L2 decay regularizer
 Gaussian_Blur = False        # enable Gaussian regularizer
 Norm_Crop = False            # enable norm regularizer
@@ -78,7 +81,7 @@ output = amu.act_max(network=model,
                 input=input,
                 layer_activation=act_dict,
                 layer_name=layer_name,
-                unit=unit,
+                units=units,
                 steps=steps,
                 alpha=alpha,
                 verbose=verbose,
