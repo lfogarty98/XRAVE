@@ -143,25 +143,23 @@ plot_latent_means(latent_means, title='Average Latent Means', save_path='utils/v
 
 
 
-### Sanity check: manually set latent means to a specific value and decode back to mel spectrogram ###
+### Sanity check: manually set latent means w.r.t principal components and decode back to mel spectrogram ###
 
 # Choose Nth principal component and plot it take the top (max or min) M dimensions
 N = 0
 pc = model.latent_pca[N]
 plot_principal_component(pc, title=f'{N+1}th Principal Component', save_path=f'utils/viz/foursines_200k/pc{N+1}.png')
 
-# Select the top M dimensions to maximize or minimize 
-M = 4
-max_dims = torch.argsort(pc, descending=True) # NOTE: ordering choice -> maximize bzw. minimize PCA param!
-max_dims = max_dims[:M]  # Select top M dimensions
+# Modify latent means to weigh by the principal component
+latent_means[:] = 1 
+pca_latent_means = latent_means * pc[None, :, None] # element-wise multiplication keeping batch dimension and time dimension
 
-# Modify latent means to emphasize the selected M dimensions
-latent_means[:] = 0
-latent_means[:, max_dims, :] = 10
-
+# Walk the latent means along the PC axis
+alpha = 0.5  # scaling factor corresponding to parameter offset
+pca_latent_means_scaled = pca_latent_means * alpha
 
 # Feed modified latent means back to decoder and plot the reconstructed waveform
-output_chunk = model.decode(latent_means).detach().cpu()
+output_chunk = model.decode(pca_latent_means_scaled).detach().cpu()
 output_chunk = output_chunk.squeeze(0)  # Remove batch dimension
 plot_waveform(output_chunk, sr, title='Reconstructed Waveform from Latent Means', save_path='utils/viz/output.png')
 
@@ -178,7 +176,7 @@ plot_waveform(output_chunk, sr, title='Reconstructed Waveform from Latent Means'
 reconstructed_mel = model.spectrogram(output_chunk)
 amu.plot_mel_spectrogram(
     reconstructed_mel, 
-    title=f'Reconstructed Mel Spectrogram from Latent Means (N={N})', 
-    save_path='utils/viz/foursines_200k/output_mel_pca1_max.png', 
+    title=f'Reconstructed Mel Spectrogram from Latent Means', 
+    save_path=f'utils/viz/foursines_200k/output_mel_pca1_alpha_{alpha}.png', 
     dB_scale=True
 )
