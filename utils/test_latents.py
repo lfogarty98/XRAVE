@@ -109,17 +109,10 @@ model = rave.RAVE()
 run = rave.core.search_for_run(model_dir)
 model = model.load_from_checkpoint(run)
 
-# We need to override the encode method, since we assume direct melspec input
-def encode_melspec_only(self, x, return_mb: bool = False):
-    z = self.encoder(x)
-    return z
-model.encode = types.MethodType(encode_melspec_only, model)    
-
 
 
 # Load a sine wave
 sine_wave, sr = torchaudio.load('./training_data/fivesines_15min/sines_signal_3.wav')
-# sine_wave, sr = torchaudio.load('/Users/DiarmuidFogarty/repos/test-signals-dataset/sweptsines_15min/swept_sines_signal_54.wav') # NOTE: maybe interesting for looking at latent trajectories
 
 # Take a chunk
 T_chunk = 128000  # Number of samples to take NOTE: T affects the number of stacked latent vectors [128, T_latent]. 2000 leads to T_latent = 1
@@ -130,10 +123,13 @@ plot_waveform(sine_chunk, sr, title='Input Waveform Chunk', save_path='utils/viz
 melspec_sine = model.spectrogram(sine_chunk)
 amu.plot_mel_spectrogram(melspec_sine, title='Mel Spectrogram of Sine Wave', save_path='utils/viz/input_mel.png')
 
-# Pass melspec chunk to encoder and save latent means
-z = model.encode(melspec_sine, return_mb=False)
-latent_means = z[:, :128, :] # (c, 256, T_latent)
+# Encode waveform chunk to get latent z
+input = sine_chunk
+# input = torch.load('./utils/viz/foursines_200k/pc_output.pt') # NOTE: load pca-aligned waveform
+z = model.encode(input.unsqueeze(0), return_mb=False)
 
+# Extract latent means
+latent_means = z[:, :128, :] # (c, 256, T_latent)
 
 # Plot the trajectories of the latent means
 plot_latent_trajectories(latent_means, title='Latent Means Trajectories', save_path='utils/viz/latent_trajectories.png')
@@ -158,20 +154,16 @@ pca_latent_means = latent_means * pc[None, :, None] # element-wise multiplicatio
 alpha = 0.5  # scaling factor corresponding to parameter offset
 pca_latent_means_scaled = pca_latent_means * alpha
 
-# Feed modified latent means back to decoder and plot the reconstructed waveform
+# Feed (modified) latent means back to decoder and plot the reconstructed waveform
 output_chunk = model.decode(pca_latent_means_scaled).detach().cpu()
+
+# output_chunk = model.decode(latent_means).detach().cpu() # NOTE: Or try decoding the z-means of the pca-aligned waveform
+
 output_chunk = output_chunk.squeeze(0)  # Remove batch dimension
+
+# torch.save(output_chunk, f'utils/viz/foursines_200k/pc_output.pt') # NOTE: save the pca-aligned waveform for later use
 plot_waveform(output_chunk, sr, title='Reconstructed Waveform from Latent Means', save_path='utils/viz/output.png')
 
-
-# Plot the (mel or stft) spectrogram of the reconstructed waveform
-# reconstructed_stft = model.spectrogram.spectrogram(output_chunk)
-# amu.plot_mel_spectrogram(
-#     reconstructed_stft, 
-#     title=f'Reconstructed Spectrogram from Latent Means (N={N})', 
-#     save_path='utils/viz/output_spec3.png', 
-#     dB_scale=True
-# )
 
 reconstructed_mel = model.spectrogram(output_chunk)
 amu.plot_mel_spectrogram(
@@ -180,3 +172,13 @@ amu.plot_mel_spectrogram(
     save_path=f'utils/viz/foursines_200k/output_mel_pca1_alpha_{alpha}.png', 
     dB_scale=True
 )
+
+breakpoint()
+
+# Sanity check 2: use reconstruced mel spectrogram as input to encoder and check latent means
+# z_reconstructed = model.encode(reconstructed_mel, return_mb=False)
+# latent_means_reconstructed = z_reconstructed[:, :128, :]
+# l = latent_means_reconstructed[0][:,0]
+# plot_principal_component(l, title=f'latent_means_reconstructed[0][:,0]', save_path=f'utils/viz/foursines_200k/z_reconstructed.png')
+# plot_latent_means(latent_means_reconstructed, title='Latent Means of Reconstructed Mel', save_path='utils/viz/latent_means_reconstructed.png')
+# plot_latent_trajectories(latent_means_reconstructed, title='Latent Means Trajectories of Reconstructed Mel', save_path='utils/viz/latent_trajectories_reconstructed.png')
