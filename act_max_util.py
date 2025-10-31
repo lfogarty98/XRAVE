@@ -13,21 +13,78 @@ from numpy import asarray, percentile, tile
 # Gaussian Kernel
 from scipy.ndimage import gaussian_filter
 
+import numpy as np
 import matplotlib.pyplot as plt
 import torchaudio.transforms
 
-def plot_mel_spectrogram(mel_spectrogram, title='Mel Spectrogram', save_path='mel_spectrogram.png'):
-    db_mel_spec = torchaudio.transforms.AmplitudeToDB()(mel_spectrogram)
-    # Remove batch dimension if present
-    if db_mel_spec.dim() == 3 and db_mel_spec.size(0) == 1:
-        db_mel_spec = db_mel_spec[0]
+def plot_mel(melspec, save_path='mel_spectrogram.png', title='Mel Spectrogram'):
+    plt.imshow(melspec, origin="lower", aspect="auto", cmap="magma")
+    plt.xlabel("Time Frames")
+    plt.ylabel("Mel Frequency Bins")
+    plt.title(title)
+    plt.colorbar()
+    plt.savefig(save_path)
+    plt.close()  # Close the figure to free memory
 
-    plt.figure(figsize=(10, 4))
-    plt.imshow(db_mel_spec, origin="lower", aspect="auto", cmap="magma")
+def plot_mel_spectrogram(mel_spectrogram, title='Mel Spectrogram', save_path='mel_spectrogram.png', dB_scale=True):
+    # Remove batch dimension if present
+    if mel_spectrogram.dim() == 3 and mel_spectrogram.size(0) == 1:
+        mel_spectrogram = mel_spectrogram[0]
+    
+    if dB_scale:
+        mel_spectrogram = torchaudio.transforms.AmplitudeToDB()(mel_spectrogram)
+        
+    else:
+        # Normalize mel spectrogram to [0, 1] range
+        mel_min = mel_spectrogram.min()
+        mel_max = mel_spectrogram.max()
+        if mel_max == mel_min:  # Avoid division by zero
+            mel_spectrogram = mel_spectrogram - mel_min
+        else:     # Normalize to [0, 1]
+            mel_spectrogram = (mel_spectrogram - mel_min) / (mel_max - mel_min)
+
+    plt.figure(figsize=(4, 8))
+    plt.imshow(mel_spectrogram, origin="lower", aspect="auto", cmap="magma")
     plt.title(title)
     plt.xlabel("Time Frames")
     plt.ylabel("Mel Frequency Bins")
-    plt.colorbar(format="%+2.0f dB")
+    if dB_scale:
+        plt.colorbar(format="%+2.0f dB")
+    else:
+        plt.colorbar(label="Amplitude")
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()  # Close the figure to free memory
+    
+def plot_activation(activation, step, save_path='activation.png'):
+    plt.bar(np.arange(len(activation.detach())), activation.detach())
+    plt.title(f'Average activation pattern at step {step}')
+    plt.savefig(save_path)
+    plt.close()  # Close the figure to free memory
+
+def plot_waveform(waveform, sample_rate, title='Waveform', save_path='waveform.png'):
+    """
+    Plots a waveform using matplotlib.
+
+    Args:
+        waveform (Tensor): Tensor of shape [channels, time].
+        sample_rate (int): Sample rate of the audio.
+        title (str): Plot title.
+        save_path (str): Path to save the figure.
+    """
+    waveform = waveform.numpy()
+    num_channels, num_frames = waveform.shape
+    time_axis = torch.arange(0, num_frames) / sample_rate
+
+    plt.figure(figsize=(10, 4))
+    for i in range(num_channels):
+        plt.plot(time_axis, waveform[i], label=f'Channel {i + 1}')
+    
+    plt.title(title)
+    plt.xlabel("Time (s)")
+    plt.ylabel("Amplitude")
+    if num_channels > 1:
+        plt.legend()
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()  # Close the figure to free memory
@@ -110,6 +167,7 @@ def act_max(network,
     steps=5, 
     alpha=torch.tensor(100), 
     generate_gif=False,
+    update_viz=False,
     path_to_gif='./',
     L2_Decay=False, 
     theta_decay=0.1,
@@ -121,11 +179,14 @@ def act_max(network,
     theta_n_crop=30,
     Contrib_Crop=False,
     theta_c_crop=30,
+    pc=None
     ):
 
-    best_activation = -float('inf')
+    best_activation = float('inf')
     best_img = input
-
+    
+    # pc = pc / pc.norm()                 # normalize once outside the loop
+    
     for k in range(steps):
 
         input.retain_grad() # non-leaf tensor
@@ -133,23 +194,59 @@ def act_max(network,
         
         # Propogate image through network,
         # then access activation of target layer
-        network(input)
+        # output = network(input)
+        _ = network.encoder(input) # NOTE: don't need consuming encode() method
         layer_out = layer_activation[layer_name]
-        
         
         # NOTE: layer_out[0] has dim (128 (256), T_latent)
         
         # compute gradients w.r.t. target units,
         # then access the gradient of input (image) w.r.t. target units (neuron)
         
-        act = layer_out[0][units].sum()  # sum activations of all target units
+        # latent_means = layer_out[units]  # (128, T_latent)
+        latent_means = layer_out[0][units]  # (128, T_latent)
+        
+        # latent_means_scaled = latent_means * pc[None, :, None]
+        # act = latent_means_scaled.sum() # or mean??
+
+        # # Average over time dimension
+        avg = latent_means.mean(dim=-1)       # shape [128]
+        
+        # # Alignment at every timestep
+        # cos_sims = torch.nn.functional.cosine_similarity(
+        #     latent_means.transpose(0,1),   # shape [T_latent, 128]
+        #     pc.unsqueeze(0),               # shape [1, 128]
+        #     dim=-1
+        # )  # shape [T_latent]
+        # act = cos_sims.mean()
+
+
+        # # Cosine similarity to PC
+        dot = torch.dot(avg, pc)
+        pc_normalized = pc / pc.norm() 
+        cos_sim = torch.dot(avg, pc_normalized) / (avg.norm() + 1e-8)
+        gamma = 1.0 # weighting factor for dot product
+        beta = 5.0  # weighting factor for cosine similarity
+        # if cos_sim < 0.8:
+        #     act = cos_sim
+        # else:
+        #     # alpha = 1
+        #     act = dot
+        act = dot
+        # act = gamma * dot + beta * cos_sim
+        
+        # act = layer_out[0][units].sum()  # sum activations of all target units
+        unit = 7
+        # act = gamma * layer_out[0][unit].mean(dim=-1) + beta * cos_sim
+        act = layer_out[0][unit].mean(dim=-1)
+        
         act.backward(retain_graph=True)
         img_grad = input.grad
-
+        
         # Gradient Step
         # input = input + alpha * dimage_dneuron
-        input = torch.add(input, torch.mul(img_grad, alpha))
-
+        input = torch.subtract(input, torch.mul(img_grad, alpha))
+        
         # regularization does not contribute towards gradient
         """
         DEV:
@@ -165,11 +262,8 @@ def act_max(network,
             if Gaussian_Blur and k % theta_every is 0:
                 temp = input.squeeze(0)
                 temp = temp.detach().numpy()
-                for channel in range(3):
-                    cimg = gaussian_filter(temp[channel], theta_width)
-                    temp[channel] = cimg
-                temp = torch.from_numpy(temp)
-                input = temp.unsqueeze(0)
+                cimg = gaussian_filter(temp, theta_width)
+                input = torch.from_numpy(cimg).unsqueeze(0)
 
             # Regularization: Clip Norm
             if Norm_Crop:
@@ -184,16 +278,26 @@ def act_max(network,
         input.requires_grad_(True)
 
         if verbose:
-            print('step: ', k, 'activation: ', act)
+            print('step: ', k, 'activation: ', act, 'cos_sim: ', cos_sim)
 
         if generate_gif:
             frame = input.detach().squeeze(0)
             frame = image_converter(frame)
             frame = frame * 255
             cv2.imwrite(path_to_gif+str(k)+'.jpg', frame)
+        
+        if update_viz:
+            # spec = network.spectrogram(input.detach().squeeze(0))
+            # plot_mel_spectrogram(spec, title='Optimal Mel Spectrogram', save_path='./visualisations/final_mel.png')
+            spec = input.detach()
+            plot_mel_spectrogram(spec, title=f'Optimal Mel Spectrogram at step {k}', save_path='./visualisations/final_mel.png', dB_scale=False)
+            plot_activation(avg, k, save_path='./visualisations/activation.png')
+            # plot_waveform(input.detach().squeeze(0), sample_rate=44100, title='Optimal Waveform', save_path='./visualisations/final_waveform.png')
+            # if k % 50 == 0:
+            #     torch.save(latent_means, f'./visualisations/activation_pattern_step_{k}.pt')
 
         # Keep highest activation
-        if best_activation < act:
+        if best_activation > act:
             best_activation = act
             best_img = input
 
