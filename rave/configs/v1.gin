@@ -61,7 +61,7 @@ blocks.Generator:
     data_size = %N_BAND
     ratios = %RATIOS
     loud_stride = 1
-    use_noise = True
+    use_noise = False
 
 blocks.ResidualStack:
     kernel_sizes = [3]

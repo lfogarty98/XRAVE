@@ -433,8 +433,13 @@ class RAVE(pl.LightningModule):
 
         z = self.encoder.reparametrize(z)[0]
         y = self.decode(z)
-
-        distance = self.audio_distance(x, y)
+        
+        # Align x and y temporal dimensions for EncoderNoPadding
+        min_len = min(x.shape[-1], y.shape[-1])
+        x_aligned = x[..., :min_len]
+        y_aligned = y[..., :min_len]
+        
+        distance = self.audio_distance(x_aligned, y_aligned)
         full_distance = sum(distance.values())
 
         if self.trainer is not None:

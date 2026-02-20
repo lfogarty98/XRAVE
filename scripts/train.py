@@ -251,6 +251,7 @@ def main(argv):
         max_steps=FLAGS.max_steps,
         profiler="simple",
         enable_progress_bar=FLAGS.progress,
+        # log_every_n_steps=18,
         **val_check,
     )
 

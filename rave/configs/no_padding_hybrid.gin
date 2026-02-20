@@ -1,0 +1,56 @@
+from __gin__ import dynamic_registration
+
+from rave import blocks
+from rave import core
+from torchaudio import transforms
+
+import rave
+
+include "configs/v1.gin"
+
+N_FFT = 2048
+N_MELS = 128
+HOP_LENGTH = 256
+ENCODER_RATIOS = [2, 2, 2]
+NUM_GRU_LAYERS = 2
+
+# Increased cumulative upsampling to compensate for higher temporal compression in encoder
+RATIOS = [4, 4, 4, 3]
+KERNEL_SIZE = 3
+
+variational_nopadding/blocks.EncoderNoPadding:
+    data_size = %N_MELS
+    capacity = %CAPACITY
+    latent_size = %LATENT_SIZE
+    ratios = %ENCODER_RATIOS
+    n_out = 2
+    sample_norm = False
+    repeat_layers = 1
+
+blocks.VariationalEncoder:
+    encoder = @variational_nopadding/blocks.EncoderNoPadding
+
+core.n_fft_to_num_bands:
+    n_fft = %N_FFT
+
+transforms.MelSpectrogram:
+    sample_rate = %SAMPLING_RATE
+    n_fft = %N_FFT
+    win_length = %N_FFT
+    hop_length = %HOP_LENGTH
+    normalized = True
+    n_mels = %N_MELS
+
+blocks.GeneratorV2:
+    recurrent_layer = @blocks.GRU
+    ratios = %RATIOS
+    kernel_size = %KERNEL_SIZE
+
+blocks.GRU:
+    latent_size = %LATENT_SIZE
+    num_layers = %NUM_GRU_LAYERS
+
+rave.RAVE:
+    spectrogram = @transforms.MelSpectrogram()
+    input_mode = "mel" 
+    

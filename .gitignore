@@ -5,6 +5,11 @@
 /pretrained
 /visualisations
 /utils
+/trash
+/checkpoints
 
 */__pycache__
 .DS_Store
+
+/build
+/acids_rave.egg-info

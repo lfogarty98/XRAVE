@@ -502,6 +502,83 @@ class Encoder(nn.Module):
         z = self.net(x)
         return z
 
+class EncoderNoPadding(nn.Module):
+    """
+    Encoder variant using standard PyTorch Conv1d without custom cached_conv padding.
+    This will result in temporal dimension reduction at each convolutional layer.
+    """
+
+    def __init__(
+        self,
+        data_size,
+        capacity,
+        latent_size,
+        ratios,
+        n_out,
+        sample_norm,
+        repeat_layers,
+        n_channels: int = 1,
+        recurrent_layer: Optional[Callable[[], nn.Module]] = None,
+        # retro-compatiblity
+        spectrogram = None
+    ):
+        super().__init__()
+        data_size = data_size or n_channels
+        net = [nn.Conv1d(data_size * n_channels, capacity, 7, padding=0)]
+
+        for i, r in enumerate(ratios):
+            in_dim = 2**i * capacity
+            out_dim = 2**(i + 1) * capacity
+
+            if sample_norm:
+                net.append(SampleNorm())
+            else:
+                net.append(nn.BatchNorm1d(in_dim))
+            net.append(nn.LeakyReLU(.2))
+            net.append(
+                nn.Conv1d(
+                    in_dim,
+                    out_dim,
+                    2 * r + 1,
+                    padding=0,
+                    stride=r,
+                ))
+
+            for i in range(repeat_layers - 1):
+                if sample_norm:
+                    net.append(SampleNorm())
+                else:
+                    net.append(nn.BatchNorm1d(out_dim))
+                net.append(nn.LeakyReLU(.2))
+                net.append(
+                    nn.Conv1d(
+                        out_dim,
+                        out_dim,
+                        3,
+                        padding=0,
+                    ))
+
+        net.append(nn.LeakyReLU(.2))
+
+        if recurrent_layer is not None:
+            net.append(recurrent_layer(dim=out_dim))
+            net.append(nn.LeakyReLU(.2))
+
+        net.append(
+            nn.Conv1d(
+                out_dim,
+                latent_size * n_out,
+                5,
+                padding=0,
+                groups=n_out,
+            ))
+
+        self.net = nn.Sequential(*net)
+
+    def forward(self, x):
+        z = self.net(x)
+        return z
+
 
 def normalize_dilations(dilations: Union[Sequence[int],
                                          Sequence[Sequence[int]]],

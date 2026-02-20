@@ -172,14 +172,15 @@ def act_max(network,
     L2_Decay=False, 
     theta_decay=0.1,
     Gaussian_Blur=False,
-    theta_every=4,
+    theta_every=20,
     theta_width=1,
     verbose=False,
     Norm_Crop=False,
     theta_n_crop=30,
     Contrib_Crop=False,
     theta_c_crop=30,
-    pc=None
+    pc=None,
+    Bin_Avg=False
     ):
 
     best_activation = -float('inf')
@@ -263,6 +264,10 @@ def act_max(network,
             if Contrib_Crop:
                 input = abs_contrib_crop(input.detach().squeeze(0), threshold=theta_c_crop)
                 input = input.unsqueeze(0)
+                
+            if Bin_Avg and k % theta_every is 0: # experimental
+                mel_avg = input.mean(dim=2, keepdim=True)
+                input = mel_avg.expand(-1, -1, input.size(2))
 
         input.requires_grad_(True)
 
