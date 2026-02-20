@@ -194,7 +194,6 @@ def act_max(network,
         
         # Propogate image through network,
         # then access activation of target layer
-        # output = network(input)
         _ = network.encoder(input) # NOTE: don't need consuming encode() method
         layer_out = layer_activation[layer_name]
         
@@ -229,16 +228,6 @@ def act_max(network,
         # Cosine similarity to PC
         pc_normalized = pc / pc.norm() 
         cos_sim = torch.dot(avg, pc_normalized) / (avg_norm + 1e-8)
-        # gamma = 1.0 # weighting factor for dot product
-        # beta = 5.0  # weighting factor for cosine similarity
-        # if cos_sim < 0.8:
-        #     act = cos_sim
-        # else:
-        #     # alpha = 1
-        #     act = dot
-        # act = dot
-        # act = gamma * dot + beta * cos_sim
-    
         
         act.backward(retain_graph=True)
         img_grad = input.grad

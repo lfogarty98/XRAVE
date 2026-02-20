@@ -4,6 +4,7 @@
 /training_data
 /pretrained
 /visualisations
+/utils
 
 */__pycache__
 .DS_Store

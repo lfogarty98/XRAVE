@@ -331,7 +331,6 @@ class RAVE(pl.LightningModule):
 
         # DISTANCE BETWEEN INPUT AND OUTPUT
         distances = {}
-        breakpoint()
         multiband_distance =  self.multiband_audio_distance(
             x_multiband, y_multiband)
         p.tick('mb distance')

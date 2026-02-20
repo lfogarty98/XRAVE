@@ -185,7 +185,6 @@ def act_max(network,
     best_activation = float('inf')
     best_img = input
     
-    # pc = pc / pc.norm()                 # normalize once outside the loop
     
     for k in range(steps):
 
@@ -195,7 +194,7 @@ def act_max(network,
         # Propogate image through network,
         # then access activation of target layer
         # output = network(input)
-        _ = network.encoder(input) # NOTE: don't need consuming encode() method
+        _ = network.encoder(input) # NOTE: don't need consuming encode() method; input is already a
         layer_out = layer_activation[layer_name]
         
         # NOTE: layer_out[0] has dim (128 (256), T_latent)
@@ -203,41 +202,16 @@ def act_max(network,
         # compute gradients w.r.t. target units,
         # then access the gradient of input (image) w.r.t. target units (neuron)
         
-        # latent_means = layer_out[units]  # (128, T_latent)
         latent_means = layer_out[0][units]  # (128, T_latent)
-        
-        # latent_means_scaled = latent_means * pc[None, :, None]
-        # act = latent_means_scaled.sum() # or mean??
 
         # # Average over time dimension
         avg = latent_means.mean(dim=-1)       # shape [128]
-        
-        # # Alignment at every timestep
-        # cos_sims = torch.nn.functional.cosine_similarity(
-        #     latent_means.transpose(0,1),   # shape [T_latent, 128]
-        #     pc.unsqueeze(0),               # shape [1, 128]
-        #     dim=-1
-        # )  # shape [T_latent]
-        # act = cos_sims.mean()
 
-
-        # # Cosine similarity to PC
-        dot = torch.dot(avg, pc)
+        # Cosine similarity to PC
         pc_normalized = pc / pc.norm() 
         cos_sim = torch.dot(avg, pc_normalized) / (avg.norm() + 1e-8)
-        gamma = 1.0 # weighting factor for dot product
-        beta = 5.0  # weighting factor for cosine similarity
-        # if cos_sim < 0.8:
-        #     act = cos_sim
-        # else:
-        #     # alpha = 1
-        #     act = dot
-        act = dot
-        # act = gamma * dot + beta * cos_sim
         
-        # act = layer_out[0][units].sum()  # sum activations of all target units
         unit = 7
-        # act = gamma * layer_out[0][unit].mean(dim=-1) + beta * cos_sim
         act = layer_out[0][unit].mean(dim=-1)
         
         act.backward(retain_graph=True)
@@ -287,14 +261,9 @@ def act_max(network,
             cv2.imwrite(path_to_gif+str(k)+'.jpg', frame)
         
         if update_viz:
-            # spec = network.spectrogram(input.detach().squeeze(0))
-            # plot_mel_spectrogram(spec, title='Optimal Mel Spectrogram', save_path='./visualisations/final_mel.png')
             spec = input.detach()
             plot_mel_spectrogram(spec, title=f'Optimal Mel Spectrogram at step {k}', save_path='./visualisations/final_mel.png', dB_scale=False)
             plot_activation(avg, k, save_path='./visualisations/activation.png')
-            # plot_waveform(input.detach().squeeze(0), sample_rate=44100, title='Optimal Waveform', save_path='./visualisations/final_waveform.png')
-            # if k % 50 == 0:
-            #     torch.save(latent_means, f'./visualisations/activation_pattern_step_{k}.pt')
 
         # Keep highest activation
         if best_activation > act:
