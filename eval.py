@@ -31,7 +31,7 @@ Norm_Crop = False            # enable norm regularizer
 Contrib_Crop = False         # enable contribution regularizer
 Bin_Avg = False              # [Experimental] enable (some kind of) bin averaging of mel spectrogram
 
-def generate_input_mel(model, z_k):
+def generate_input_mel(model, z_k, save_path='./visualisations'):
     
     num_frames = 8 # compression ratio of encoder
     initial_mel = torch.ones(1, 128, num_frames) * 0.005 #TODO: use kaiming yeah?
@@ -60,7 +60,8 @@ def generate_input_mel(model, z_k):
         update_viz=True,
         theta_width=1,
         theta_every=4,
-        z_k=z_k
+        z_k=z_k,
+        save_path=save_path
     )
     return output
     
@@ -84,14 +85,25 @@ def run_evaluation():
     # Define test points along pca axis
     k_vals = [-2, -1, 0, 1, 2]
     
+    # Number of PCA components to evaluate
     num_pca = 3
+    
+    # Create evaluation directory
+    import time
+    timestamp = time.strftime('%Y%m%d_%H%M%S')
+    eval_dir = f'./visualisations/evaluation_{timestamp}/'
+    
     for i in range(num_pca):
         pc = model.latent_pca[i]
         assert torch.norm(pc) == 1, f'PCA vector {i} is not normalized'
         for k in k_vals:
-            print(f'\nEvaluating PCA component {i} at k={k}...')
             z_k = pc * k
-            input_mel = generate_input_mel(model, z_k) # Run ActMax
+            
+            dir_path = os.path.join(eval_dir, f'pca_component_{i}_k_{k}')# first idx is pca component, second idx is k value
+            os.makedirs(dir_path, exist_ok=True) 
+            print(f'\nEvaluating PCA component {i} at k={k}...')
+            
+            input_mel = generate_input_mel(model, z_k, save_path=dir_path) # Run ActMax
             output_mel = generate_output_mel(model, z_k) # Run decoder
 
             # TODO: compute freq-domain AFs
@@ -103,6 +115,10 @@ def run_evaluation():
             )  # shape: [n_mels]
             sc_input = sc_from_mel(input_mel, mel_freqs)
             sc_output = sc_from_mel(output_mel, mel_freqs)
+            
+            
+            # Save results (input mel plot, output mel plot, final activation vector, AFs)
+            amu.plot_mel_spectrogram(output_mel, title=f'Output Mel Spectrogram (PCA {i}, k={k})', save_path=os.path.join(dir_path, 'output_mel.png'), dB_scale=True)
             
             
             breakpoint()

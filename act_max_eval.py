@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 import torchvision.models as models
@@ -139,7 +141,8 @@ def act_max(network,
     Bin_Avg=False,
     beta=1.0,
     eps_cos=0.01,
-    eps_mag=0.01
+    eps_mag=0.01,
+    save_path='./visualisations'
     ):
 
     best_activation = -float('inf')
@@ -226,11 +229,9 @@ def act_max(network,
             print('step: ', step, 'activation: ', act, 'cos_sim: ', cos_sim, 'norm: ', avg_norm)
         
         if update_viz:
-            # spec = network.spectrogram(input.detach().squeeze(0))
-            # plot_mel_spectrogram(spec, title='Optimal Mel Spectrogram', save_path='./visualisations/final_mel.png')
             spec = input.detach()
-            plot_mel_spectrogram(spec, title=f'Optimal Mel Spectrogram at step {step}', save_path='./visualisations/final_mel.png', dB_scale=False)
-            plot_activation(avg, step, save_path='./visualisations/activation.png')
+            plot_mel_spectrogram(spec, title=f'Optimal Mel Spectrogram at step {step}', save_path=os.path.join(save_path, f'final_mel.png'), dB_scale=False)
+            plot_activation(avg, step, save_path=os.path.join(save_path, f'final_activation.png'))
             # plot_waveform(input.detach().squeeze(0), sample_rate=44100, title='Optimal Waveform', save_path='./visualisations/final_waveform.png')
             # if step % 50 == 0:
             #     torch.save(latent_means, f'./visualisations/activation_pattern_step_{step}.pt')
