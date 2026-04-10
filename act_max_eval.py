@@ -140,8 +140,8 @@ def act_max(network,
     z_k=None,
     Bin_Avg=False,
     beta=1.0,
-    eps_cos=0.01,
-    eps_mag=0.01,
+    eps_cos=0.05,
+    eps_mag=0.05,
     save_path='./visualisations'
     ):
 
@@ -176,14 +176,14 @@ def act_max(network,
         cos_sim = torch.dot(avg, z_k) / (avg_norm * k + 1e-8)
         
         # Check stopping criterion
-        if cos_sim > 1 - eps_cos and mag_div < eps_mag:
+        if cos_sim > 1 - eps_cos and avg_norm - k < eps_mag:
             if verbose:
                 print(f'Stopping criterion met at step {step}: cos_sim={cos_sim:.4f}, mag_div={mag_div:.4f}')
             break
         
         # Compute objective
         act = cos_sim - beta * mag_div
-        
+
         # Backpropagate to input spectrogram
         act.backward(retain_graph=True)
         img_grad = input.grad
@@ -230,7 +230,7 @@ def act_max(network,
         
         if update_viz:
             spec = input.detach()
-            plot_mel_spectrogram(spec, title=f'Optimal Mel Spectrogram at step {step}', save_path=os.path.join(save_path, f'final_mel.png'), dB_scale=False)
+            plot_mel_spectrogram(spec, title=f'Optimal Mel Spectrogram at step {step}', save_path=os.path.join(save_path, f'final_mel.png'), dB_scale=True)
             plot_activation(avg, step, save_path=os.path.join(save_path, f'final_activation.png'))
             # plot_waveform(input.detach().squeeze(0), sample_rate=44100, title='Optimal Waveform', save_path='./visualisations/final_waveform.png')
             # if step % 50 == 0:
