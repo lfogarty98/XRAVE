@@ -186,8 +186,6 @@ def act_max(network,
     best_activation = -float('inf')
     best_img = input
     
-    # pc = pc / pc.norm()                 # normalize once outside the loop
-    
     for k in range(steps):
 
         input.retain_grad() # non-leaf tensor
@@ -197,36 +195,21 @@ def act_max(network,
         # then access activation of target layer
         _ = network.encoder(input) # NOTE: don't need consuming encode() method
         layer_out = layer_activation[layer_name]
-        
-        # NOTE: layer_out[0] has dim (128 (256), T_latent)
-        
+    
         # compute gradients w.r.t. target units,
         # then access the gradient of input (image) w.r.t. target units (neuron)
         
-        # latent_means = layer_out[units]  # (128, T_latent)
+        # Average over time dimension
         latent_means = layer_out[0][units]  # (128, T_latent)
-        
-        # latent_means_scaled = latent_means * pc[None, :, None]
-        # act = latent_means_scaled.sum() # or mean??
-
-        # # Average over time dimension
         avg = latent_means.mean(dim=-1)       # shape [128]
         avg_norm = avg.norm()
-        
-        # # Alignment at every timestep
-        # cos_sims = torch.nn.functional.cosine_similarity(
-        #     latent_means.transpose(0,1),   # shape [T_latent, 128]
-        #     pc.unsqueeze(0),               # shape [1, 128]
-        #     dim=-1
-        # )  # shape [T_latent]
-        # act = cos_sims.mean()
 
+        # Dot product with PC
         dot = torch.dot(avg, pc)
-        beta = 0.75
+        beta = 0.7
         act = dot - beta * avg_norm
-        
-        
-        # Cosine similarity to PC
+
+        # Cosine similarity to PC (only for logging)
         pc_normalized = pc / pc.norm() 
         cos_sim = torch.dot(avg, pc_normalized) / (avg_norm + 1e-8)
         
@@ -234,7 +217,6 @@ def act_max(network,
         img_grad = input.grad
         
         # Gradient Step
-        # input = input + alpha * dimage_dneuron
         input = torch.add(input, torch.mul(img_grad, alpha))
         
         # regularization does not contribute towards gradient

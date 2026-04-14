@@ -1,0 +1,92 @@
+python scripts/preprocess.py \
+--input_path /home/alan2/XRAVE/training_data/foursines/raw \
+--output_path /home/alan2/XRAVE/training_data/foursines \
+--channels 1
+
+python scripts/train.py \
+  --name noise_warmup_200k_latent_32 \
+  --db_path /home/alan2/XRAVE/training_data/noise \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --override PHASE_1_DURATION=200000 \
+  --save_every 50000 \
+  --channels 1 \
+  --gpu 0
+
+
+python scripts/train.py \
+  --name jelinek \
+  --db_path /home/alan2/XRAVE/training_data/jelinek \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --augment gain \
+  --augment mute \
+  --augment compress \
+  --channels 1 \
+  --gpu 0
+
+
+  python scripts/train.py \
+  --name jelinek \
+  --db_path /home/alan2/XRAVE/training_data/jelinek \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --config noise \
+  --channels 1 \
+  --augment gain \
+  --augment mute \
+  --gpu 0
+
+    python scripts/train.py \
+  --name bach \
+  --db_path /home/alan2/XRAVE/training_data/bach \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --config noise \
+  --channels 1 \
+  --augment gain \
+  --augment mute \
+  --gpu 0
+
+
+python scripts/train.py \
+  --name twosines \
+  --db_path /home/alan2/XRAVE/training_data/twosines \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --channels 1 \
+  --gpu 0
+
+
+python scripts/train.py \
+  --name noise_v1 \
+  --db_path /home/alan2/XRAVE/training_data/noise \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config v1 \
+  --override PHASE_1_DURATION=50000 \
+  --save_every 25000 \
+  --max_steps 100000 \
+  --channels 1 \
+  --gpu 0
+
+python scripts/train.py \
+  --name drumset \
+  --db_path /home/alan2/XRAVE/training_data/drumset/rave \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --save_every 100000 \
+  --channels 1 \
+  --gpu 0
+
+python scripts/train.py \
+  --name nsynth_keyboard_electronic \
+  --db_path /home/alan2/XRAVE/training_data/nsynth/nsynth-test/keyboard_electronic \
+  --out_path /home/alan2/XRAVE/experiments/ \
+  --config hybrid \
+  --override PHASE_1_DURATION=500000 \
+  --save_every 100000 \
+  --channels 1 \
+  --n_signal 65536 \
+  --gpu 0
+
+python scripts/export.py --run checkpoints/complex/nsynth --name nsynth --output checkpoints/complex/nsynth/ --streaming True --fidelity 0.95
